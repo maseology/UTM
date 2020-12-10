@@ -153,8 +153,8 @@ func ToLatLon(easting, northing float64, zoneNumber int, zoneLetter string, nort
 	d5 := d4 * d
 	d6 := d5 * d
 
-	latitude = pRad - (pTan / rad) *
-		(d2/2 -
+	latitude = pRad - (pTan/rad)*
+		(d2/2-
 			d4/24*(5+3*pTan2+10*c-4*c2-9*eP2)) +
 		d6/720*(61+90*pTan2+298*c+45*pTan4-252*eP2-3*c2)
 
@@ -226,11 +226,69 @@ func FromLatLon(latitude, longitude float64, northern bool) (easting, northing f
 		m2*math.Sin(2*latRad) +
 		m3*math.Sin(4*latRad) -
 		m4*math.Sin(6*latRad))
-	easting = k0*n * (a +
-		a3/6*(1-latTan2+c) +
+	easting = k0*n*(a+
+		a3/6*(1-latTan2+c)+
 		a5/120*(5-18*latTan2+latTan4+72*c-58*eP2)) + 500000
-	northing = k0 * (m + n*latTan * (a2/2 +
-		a4/24*(5-latTan2+9*c+4*c*c) +
+	northing = k0 * (m + n*latTan*(a2/2+
+		a4/24*(5-latTan2+9*c+4*c*c)+
+		a6/720*(61-58*latTan2+latTan4+600*c-330*eP2)))
+
+	if latitude < 0 {
+		northing += 10000000
+	}
+
+	return
+}
+
+// FromLatLonZone convert a latitude and longitude to Universal Transverse Mercator coordinates of a specified zone
+func FromLatLonZone(latitude, longitude float64, zoneNumber int, northern bool) (easting, northing float64, zoneLetter string, err error) {
+	// check that latitude and longitude are valid
+	err = ValidateLatLone(latitude, longitude)
+	if err != nil {
+		return
+	}
+
+	latRad := rad(latitude)
+	latSin := math.Sin(latRad)
+	latCos := math.Cos(latRad)
+
+	latTan := latSin / latCos
+	latTan2 := latTan * latTan
+	latTan4 := latTan2 * latTan2
+
+	zoneLetter = latitudeToZoneLetter(latitude)
+
+	if northern {
+		// N north, S south
+		if latitude > 0 {
+			zoneLetter = "N"
+		} else {
+			zoneLetter = "S"
+		}
+	}
+
+	lonRad := rad(longitude)
+	centralLon := zoneNumberToCentralLongitude(zoneNumber)
+	centralLonRad := rad(float64(centralLon))
+
+	n := r / math.Sqrt(1-e*latSin*latSin)
+	c := eP2 * latCos * latCos
+
+	a := latCos * (lonRad - centralLonRad)
+	a2 := a * a
+	a3 := a2 * a
+	a4 := a3 * a
+	a5 := a4 * a
+	a6 := a5 * a
+	m := r * (m1*latRad -
+		m2*math.Sin(2*latRad) +
+		m3*math.Sin(4*latRad) -
+		m4*math.Sin(6*latRad))
+	easting = k0*n*(a+
+		a3/6*(1-latTan2+c)+
+		a5/120*(5-18*latTan2+latTan4+72*c-58*eP2)) + 500000
+	northing = k0 * (m + n*latTan*(a2/2+
+		a4/24*(5-latTan2+9*c+4*c*c)+
 		a6/720*(61-58*latTan2+latTan4+600*c-330*eP2)))
 
 	if latitude < 0 {
